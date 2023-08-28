@@ -5,6 +5,7 @@ import com.akkykaths.user.service.entities.Rating;
 import com.akkykaths.user.service.entities.User;
 import com.akkykaths.user.service.exceptions.ResourseNotFoundException;
 import com.akkykaths.user.service.external.services.HotelService;
+import com.akkykaths.user.service.external.services.RatingService;
 import com.akkykaths.user.service.repository.UserRepo;
 import com.akkykaths.user.service.services.UserService;
 import org.slf4j.Logger;
@@ -35,6 +36,9 @@ public class UserServiceImpl implements UserService {
     @Autowired
     private HotelService hotelService;
 
+    @Autowired
+    private RatingService ratingService;
+
     private Logger logger = LoggerFactory.getLogger(UserServiceImpl.class);
 
     @Override
@@ -47,8 +51,33 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public List<User> getAllUsers() {
+        // get all users
         List<User> allUsers = this.userRepo.findAll();
-        return allUsers;
+
+        // get all users with ratings with hotel details
+        List<User> users = allUsers.stream().map(user ->{
+
+            // fetching rating of user using Feign Client from RATING-SERVICE
+            List<Rating> ratings = ratingService.getRatings(user.getUserId());
+            logger.info("{}",ratings);
+
+            // get hotel details of rating from HOTEL-SERVICE using feign client
+            List<Rating> ratingList = ratings.stream().map(rating -> {
+                // api call to hotel service to get the hotel
+                // USING FeignClient
+                Hotel hotel = hotelService.getHotel(rating.getHotelId());
+
+                // set the hotel to rating
+                rating.setHotel(hotel);
+
+                return rating;
+            }).collect(Collectors.toList());
+
+            user.setRatings(ratingList);
+            return user;
+        }).collect(Collectors.toList());
+
+        return users;
     }
 
     // get a single user
@@ -56,19 +85,21 @@ public class UserServiceImpl implements UserService {
     public User getUser(String userId) {
 
         User user =  this.userRepo.findById(userId).orElseThrow(() -> new ResourseNotFoundException("User Not found for userId " + userId));
-        // fetching rating of above user from RATING SERVICE
-        final String url = "http://RATING-SERVICE/api/ratings/users/" + user.getUserId();
 
+        /*
+        // fetching rating of above user from RATING SERVICE using RestTemplate
+        final String url = "http://RATING-SERVICE/api/ratings/users/" + user.getUserId();
         Rating[] ratingsOfUser = restTemplate.getForObject(url, Rating[].class);
         List<Rating> ratings = Arrays.stream(ratingsOfUser).toList();
         logger.info("{}",ratingsOfUser);
+         */
+
+        // fetching rating of user using Feign Client from RATING-SERVICE
+        List<Rating> ratings = ratingService.getRatings(user.getUserId());
+        logger.info("{}",ratings);
 
         List<Rating> ratingList = ratings.stream().map(rating -> {
             // api call to hotel service to get the hotel
-            // USING RestTemplate
-//            final String hotelUrl = "http://HOTEL-SERVICE/api/hotels/hotel/" + rating.getHotelId();
-//            ResponseEntity<Hotel> forEntity = restTemplate.getForEntity(hotelUrl, Hotel.class);
-
             // USING FeignClient
             Hotel hotel = hotelService.getHotel(rating.getHotelId());
 
@@ -77,9 +108,6 @@ public class UserServiceImpl implements UserService {
 
             return rating;
         }).collect(Collectors.toList());
-
-
-
 
         user.setRatings(ratingList);
 
