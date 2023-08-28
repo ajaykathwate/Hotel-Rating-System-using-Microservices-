@@ -25,7 +25,7 @@ The project is organized into the following modules:
 ## Usage
 
 - The Eureka Server dashboard can be accessed at: `http://localhost:8761`
-- The API Gateway handles external requests at: `http://localhost:8080`
+- The API Gateway handles external requests at: `http://127.0.0.1:8085`
 - Example endpoints for services:
   - user-service: `http://localhost:8081/api/users`
   - hotel-service: `http://localhost:8082/api/hotels`
